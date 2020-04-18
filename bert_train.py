@@ -31,6 +31,7 @@ parser.add_argument('--random_seed',type=int,default =42,help='for split train v
 parser.add_argument('--bert_model',type=str,default='base',help='bert-base-chinese:base  hfl/chinese-roberta-wwm-ext: wwm hfl/chinese-roberta-wwm-ext-large: large')
 parser.add_argument('--test_function',type=bool,default=False,help='test with 1000 samples')
 parser.add_argument('--batch_size',type=int,default=4)
+parser.add_argument('--save_model',type=bool,default=False)
 args = parser.parse_args()
 
 
@@ -139,7 +140,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'%s_ep%d_bc%d_%.4f'%(BERT_MODEL,epoch,batch_size,Valid_F1))
+        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
@@ -174,3 +175,5 @@ for epoch in range(1,epoches+1):
     with torch.no_grad():
         Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
         train_or_test(model,test_data,ids,test_data_index,batch_size,'test',None,epoch)
+    if args.save_model and  epoch == 2:
+        torch.save(model,'%s_rs%d_ep%d_bc%d_%.4f.model'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
