@@ -9,6 +9,7 @@ import time
 from transformers import BertTokenizer, BertModel
 from transformers import AdamW, get_linear_schedule_with_warmup
 import logging
+import argparse
 import bert_utils
 
 logger =logging.getLogger()
@@ -25,27 +26,45 @@ ch.setFormatter(formatter)
 logger.addHandler(fh)
 #logger.addHandler(ch)
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--random_seed',type=int,default =42,help='for split train valid data')
+parser.add_argument('--bert_model',type=str,default='base',help='bert-base-chinese:base  hfl/chinese-roberta-wwm-ext: wwm hfl/chinese-roberta-wwm-ext-large: large')
+parser.add_argument('--test_function',type=bool,default=False,help='test with 1000 samples')
+parser.add_argument('--batch_size',type=int,default=4)
+args = parser.parse_args()
 
-batch_size = 4 #256
+
+batch_size = args.batch_size
 epoches = 3
 learning_rate = 2e-5
 device = torch.device("cuda")
 
-random_seed = 42
+random_seed = args.random_seed
 np.random.seed(random_seed)
 
-pretrained_model = BertModel.from_pretrained('bert-base-chinese')
-# https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-pytorch_model.bin
-tokenizer =BertTokenizer.from_pretrained('bert-base-chinese')
-#pretrained_model = BertModel.from_pretrained('hfl/chinese-roberta-wwm-ext')
-#tokenizer =BertTokenizer.from_pretrained('hfl/chinese-roberta-wwm-ext')
-#pretrained_model = BertModel.from_pretrained('hfl/chinese-roberta-wwm-ext-large')
-#tokenizer =BertTokenizer.from_pretrained('hfl/chinese-roberta-wwm-ext-large')
+BERT_base = 'bert-base-chinese'
+BERT_wwm = 'hfl/chinese-roberta-wwm-ext'
+BERT_wwm_large = 'hfl/chinese-roberta-wwm-ext-large'
+
+BERT_MODEL = None
+if args.bert_model=='base':
+    BERT_MODEL = BERT_base
+elif args.bert_model=='wwm':
+    BERT_MODEL = BERT_wwm
+elif args.bert_model=='large':
+    BERT_MODEL = BERT_wwm_large
+else:
+    print("input bert_model ERROR! it should be one of [base wwm large]")
+
+
+pretrained_model = BertModel.from_pretrained(BERT_MODEL)
+tokenizer =BertTokenizer.from_pretrained(BERT_MODEL)
+
 
 max_len = 150
 xtrain,xvalid,ytrain,yvalid,test_data,ids = bert_utils.get_split_data(random_seed)
 #train_data,label,test_data,ids = bert_utils.get_Bert_whole_data()
-
+Valid_F1 = 0
 
 class BertEmotionClassifier(nn.Module):
     def __init__(self,pretrained_model,class_size):
@@ -70,8 +89,8 @@ class BertEmotionClassifier(nn.Module):
         #output = outputs[1] #batch_size*hidden_size
         output = outputs[0] #batch_size*sequence_length*hidden_size
         #output = self.pooling(output.contiguous().view(output.size(0),output.size(2),output.size(1)))
-        #output = torch.mean(output,1) #globalaveragepooling1D 
-        output = torch.max(output,1)[0]
+        output = torch.mean(output,1) #globalaveragepooling1D 
+        #output = torch.max(output,1)[0] #结果略差
         #print(output.size())
 
         linear_out = self.hidden2class(self.dropout_layer(output))
@@ -114,12 +133,13 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         mean_loss = np.mean(losses)
         P,F1 = bert_utils.getF1(preds,Y)
         print("Valid epoch:%d time:%.4f loss:%.4f  F1:%.4f  P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
+        return F1
     elif train_type=='train':
         mean_loss = np.mean(losses)
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'Bert_Result_100_%d'%(epoch))
+        bert_utils.saveResult(Y,preds,'%s_ep%d_bc%d_%.4f'%(BERT_MODEL,epoch,batch_size,Valid_F1))
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
@@ -136,12 +156,12 @@ optimizer = AdamW(group_parameters,lr=learning_rate)
 num_steps =len(xtrain)//batch_size*epoches
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
-'''
-temp =1000
-xtrain =xtrain[:temp]
-xvalid =xvalid[:temp]
-test_data =test_data[:temp]
-'''
+if args.test_function:
+    temp =1000
+    xtrain =xtrain[:temp]
+    xvalid =xvalid[:temp]
+    test_data =test_data[:temp]
+
 
 
 train_data_index = np.arange(len(xtrain))
@@ -152,5 +172,5 @@ for epoch in range(1,epoches+1):
 
     train_or_test(model,xtrain,ytrain,train_data_index,batch_size,'train',optimizer,epoch)
     with torch.no_grad():
-        train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
+        Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
         train_or_test(model,test_data,ids,test_data_index,batch_size,'test',None,epoch)
