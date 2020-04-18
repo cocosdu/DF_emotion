@@ -36,6 +36,9 @@ parser.add_argument('--dropout',type=float,default=0.15)
 parser.add_argument('--clip_grad',type=int,default=1)
 parser.add_argument('--maxlen',type=int,default=150)
 parser.add_argument('--max_epoch',type=int,default=3)
+parser.add_argument('--RNN_type',type=str,default=None)
+parser.add_argument('--rnn_hidden_size',type=int,default=128)
+parser.add_argument('--rnn_layers',type=int,default=1)
 args = parser.parse_args()
 
 
@@ -82,7 +85,11 @@ class BertEmotionClassifier(nn.Module):
         self.pretrained_model = pretrained_model
         self.hidden_dim = self.pretrained_model.config.hidden_size
         self.dropout_layer = nn.Dropout(args.dropout)#0.15
-        self.pooling =nn.Linear(max_len,1)
+        #self.pooling =nn.Linear(max_len,1)
+
+        if args.RNN_type=='LSTM':
+            self.lstm = nn.LSTM(self.hidden_dim,args.rnn_hidden_size,num_layers=args.rnn_layers,bidirectional =True,batch_first=True)
+            self.hidden_dim = args.rnn_hidden_size * args.rnn_layers * 2
 
         self.hidden2class = nn.Linear(self.hidden_dim,self.class_size)
 
@@ -97,11 +104,17 @@ class BertEmotionClassifier(nn.Module):
         # last_hidden_state,pooler_output,hidden_states,attentions
         #output = outputs[1] #batch_size*hidden_size
         output = outputs[0] #batch_size*sequence_length*hidden_size
-        #output = self.pooling(output.contiguous().view(output.size(0),output.size(2),output.size(1)))
-        output = torch.mean(output,1) #globalaveragepooling1D 
-        #output = torch.max(output,1)[0] #结果略差
-        #print(output.size())
-
+        if args.RNN_type =='LSTM':
+            out,h_t_c_t = self.lstm(output)
+            #out batch,seq_len,num_directions*hidden_size h_n ( num_layers * num_directions, batch,hidden_size)
+            h_t = h_t_c_t[0]
+            h_t = h_t.transpose(0,1)
+            output = h_t.contiguous().view(h_t.size(0),-1)
+        else:
+            #output = self.pooling(output.contiguous().view(output.size(0),output.size(2),output.size(1)))
+            output = torch.mean(output,1) #globalaveragepooling1D 
+            #output = torch.max(output,1)[0] #结果略差
+            #print(output.size())
         linear_out = self.hidden2class(self.dropout_layer(output))
         scores = F.log_softmax(linear_out,dim=1)
         return scores
@@ -148,7 +161,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
+        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_%s'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.RNN_type))
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
@@ -184,4 +197,4 @@ for epoch in range(1,epoches+1):
         Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
         train_or_test(model,test_data,ids,test_data_index,batch_size,'test',None,epoch)
     if args.save_model and  epoch == 2:
-        torch.save(model,'ignore/%s_rs%d_ep%d_bc%d_%.4f.model'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
+        torch.save(model,'ignore/%s_rs%d_ep%d_bc%d_%.4f_%s.model'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.RNN_type))
