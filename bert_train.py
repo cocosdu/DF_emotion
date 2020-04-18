@@ -32,11 +32,15 @@ parser.add_argument('--bert_model',type=str,default='base',help='bert-base-chine
 parser.add_argument('--test_function',type=bool,default=False,help='test with 1000 samples')
 parser.add_argument('--batch_size',type=int,default=4)
 parser.add_argument('--save_model',type=bool,default=False)
+parser.add_argument('--dropout',type=float,default=0.15)
+parser.add_argument('--clip_grad',type=int,default=1)
+parser.add_argument('--maxlen',type=int,default=150)
+parser.add_argument('--max_epoch',type=int,default=3)
 args = parser.parse_args()
 
 
 batch_size = args.batch_size
-epoches = 3
+epoches = args.max_epoch
 learning_rate = 2e-5
 device = torch.device("cuda")
 
@@ -48,21 +52,25 @@ BERT_wwm = 'hfl/chinese-roberta-wwm-ext'
 BERT_wwm_large = 'hfl/chinese-roberta-wwm-ext-large'
 
 BERT_MODEL = None
+tokenizer_path =None
 if args.bert_model=='base':
     BERT_MODEL = BERT_base
+    tokenizer_path =BERT_MODEL
 elif args.bert_model=='wwm':
     BERT_MODEL = BERT_wwm
+    tokenizer_path = BERT_MODEL
 elif args.bert_model=='large':
-    BERT_MODEL = BERT_wwm_large
+    BERT_MODEL = '../data/model'
+    tokenizer_path = '../data/model/vocab.txt'
 else:
     print("input bert_model ERROR! it should be one of [base wwm large]")
 
 
 pretrained_model = BertModel.from_pretrained(BERT_MODEL)
-tokenizer =BertTokenizer.from_pretrained(BERT_MODEL)
+tokenizer =BertTokenizer.from_pretrained(tokenizer_path)
 
 
-max_len = 150
+max_len = args.maxlen
 xtrain,xvalid,ytrain,yvalid,test_data,ids = bert_utils.get_split_data(random_seed)
 #train_data,label,test_data,ids = bert_utils.get_Bert_whole_data()
 Valid_F1 = 0
@@ -73,7 +81,7 @@ class BertEmotionClassifier(nn.Module):
         self.class_size = class_size
         self.pretrained_model = pretrained_model
         self.hidden_dim = self.pretrained_model.config.hidden_size
-        self.dropout_layer = nn.Dropout(0.15)#0.15
+        self.dropout_layer = nn.Dropout(args.dropout)#0.15
         self.pooling =nn.Linear(max_len,1)
 
         self.hidden2class = nn.Linear(self.hidden_dim,self.class_size)
@@ -125,7 +133,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         if train_type=="train":
             optimizer.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(params,1)
+            torch.nn.utils.clip_grad_norm_(params,args.clip_grad)
             optimizer.step()
             scheduler.step()
 
@@ -176,4 +184,4 @@ for epoch in range(1,epoches+1):
         Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
         train_or_test(model,test_data,ids,test_data_index,batch_size,'test',None,epoch)
     if args.save_model and  epoch == 2:
-        torch.save(model,'%s_rs%d_ep%d_bc%d_%.4f.model'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
+        torch.save(model,'ignore/%s_rs%d_ep%d_bc%d_%.4f.model'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1))
