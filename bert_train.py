@@ -39,12 +39,14 @@ parser.add_argument('--max_epoch',type=int,default=3)
 parser.add_argument('--RNN_type',type=str,default=None)
 parser.add_argument('--rnn_hidden_size',type=int,default=128)
 parser.add_argument('--rnn_layers',type=int,default=1)
+parser.add_argument('--Train_valid',type=bool,default=False)
+parser.add_argument('--learning_rate',type=float,default=2e-5)
 args = parser.parse_args()
 
 
 batch_size = args.batch_size
 epoches = args.max_epoch
-learning_rate = 2e-5
+learning_rate = args.learning_rate
 device = torch.device("cuda")
 
 random_seed = args.random_seed
@@ -184,14 +186,15 @@ if args.test_function:
     xvalid =xvalid[:temp]
     test_data =test_data[:temp]
 
-
+if args.Train_valid:
+    xtrain = np.concatenate((xtrain,xvalid))
+    print("Train all data,len=%d"%(len(xtrain)))
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
 test_data_index = np.arange(len(test_data))
 
 for epoch in range(1,epoches+1):
-
     train_or_test(model,xtrain,ytrain,train_data_index,batch_size,'train',optimizer,epoch)
     with torch.no_grad():
         Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)

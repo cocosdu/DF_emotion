@@ -94,5 +94,6 @@ def getF1(pred,y):
 def saveResult(ids,test_pred,name='Result'):
     dic =[-1,0,1]
     result = [dic[i] for i in test_pred]
-    test=pd.DataFrame(result,index=ids,columns=['y'])
-    test.to_csv(name+'.csv')
+    test = pd.DataFrame({'id':ids,'y':result})
+    #test=pd.DataFrame(result,index=ids,columns=['y'])
+    test.to_csv(name+'.csv',index=False)
