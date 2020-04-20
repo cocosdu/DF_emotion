@@ -189,7 +189,7 @@ if args.test_function:
 if args.Train_valid:
     xtrain = np.concatenate((xtrain,xvalid))
     ytrain = np.concatenate((ytrain,yvalid))
-    print("Train all data,len=%d"%(len(xtrain),len(ytrain)))
+    print("Train all data,len=%d"%(len(xtrain)))
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
