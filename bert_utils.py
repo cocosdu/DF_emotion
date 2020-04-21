@@ -8,8 +8,6 @@ train_label_path = "data/train_label.csv"
 train_unlabel_path = "data/train_unlabel.csv"
 test_path ="data/test.csv"
 
-Label_dict ={'-1':0,'0':1,'1':2}
-
 
 
 cls_token='[CLS]'
@@ -38,9 +36,12 @@ def get_split_data(random_state):
     print("train_data:%d,valid_data:%d,test_data:%d"%(len(xtrain),len(xvalid),len(test_data)))
     return xtrain,xvalid,ytrain,yvalid,test_data,ids
 
-'''
+def get_best_test_label():
+    data = pd.read_csv('72.94.csv')
+    return np.asarray(data['y']+1)
+
 #max(train_lens)=241 # 99560  56637 <=100 93218  <=150 
-'''
+
 def get_minibatch(inputs,labels,indexes,train_type,device=torch.device("cuda")):
     data_batch =[inputs[idx] for idx in indexes]
     label_batch =[labels[idx] for idx in indexes]

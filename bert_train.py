@@ -42,6 +42,7 @@ parser.add_argument('--rnn_layers',type=int,default=1)
 parser.add_argument('--Train_valid',type=bool,default=False)
 parser.add_argument('--learning_rate',type=float,default=2e-5)
 parser.add_argument('--N_batch_optimizer',type = int,default=1)
+parser.add_argument('--Train_test',type=bool,default=False)
 args = parser.parse_args()
 
 
@@ -78,6 +79,7 @@ tokenizer =BertTokenizer.from_pretrained(tokenizer_path)
 
 max_len = args.maxlen
 xtrain,xvalid,ytrain,yvalid,test_data,ids = bert_utils.get_split_data(random_seed)
+test_y = bert_utils.get_best_test_label()
 #train_data,label,test_data,ids = bert_utils.get_Bert_whole_data()
 Valid_F1 = 0
 
@@ -180,8 +182,6 @@ group_parameters =[{'params':[p for n,p in named_params if not any(nd in n for n
   {'params':[p for n,p in named_params if any(nd in n for nd in no_decay)],'weight_decay':0.0}]
 #optimizer = optim.Adam(params, lr=learning_rate)
 optimizer = AdamW(group_parameters,lr=learning_rate)
-num_steps =len(xtrain)//batch_size*1
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 if args.test_function:
     temp =1000
@@ -193,6 +193,13 @@ if args.Train_valid:
     xtrain = np.concatenate((xtrain,xvalid))
     ytrain = np.concatenate((ytrain,yvalid))
     print("Train all data,len=%d"%(len(xtrain)))
+if args.Train_test:
+    xtrain = np.concatenate((xtrain,test_data))
+    ytrain = np.concatenate((ytrain,test_y))
+    print("Train test with best scores,len=%d"%(len(xtrain)))
+
+num_steps =len(xtrain)//batch_size//arg.N_batch_optimizer *epoches
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
