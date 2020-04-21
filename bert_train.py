@@ -165,7 +165,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_%s_acc_%d'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.RNN_type,args.N_batch_optimizer))
+        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_acc%d'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.N_batch_optimizer))
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
