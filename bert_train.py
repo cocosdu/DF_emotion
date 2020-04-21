@@ -182,8 +182,6 @@ group_parameters =[{'params':[p for n,p in named_params if not any(nd in n for n
   {'params':[p for n,p in named_params if any(nd in n for nd in no_decay)],'weight_decay':0.0}]
 #optimizer = optim.Adam(params, lr=learning_rate)
 optimizer = AdamW(group_parameters,lr=learning_rate)
-num_steps =len(xtrain)//batch_size*1
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 if args.test_function:
     temp =1000
@@ -199,6 +197,9 @@ if args.Train_test:
     xtrain = np.concatenate((xtrain,test_data))
     ytrain = np.concatenate((ytrain,test_y))
     print("Train test with best scores,len=%d"%(len(xtrain)))
+
+num_steps =len(xtrain)//batch_size*epoches
+scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
