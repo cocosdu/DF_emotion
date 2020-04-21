@@ -198,7 +198,7 @@ if args.Train_test:
     ytrain = np.concatenate((ytrain,test_y))
     print("Train test with best scores,len=%d"%(len(xtrain)))
 
-num_steps =len(xtrain)//batch_size*epoches
+num_steps =len(xtrain)//batch_size//arg.N_batch_optimizer *epoches
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 train_data_index = np.arange(len(xtrain))
