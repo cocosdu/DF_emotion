@@ -132,6 +132,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
     losses = []
     preds =[]
     Y =[]
+    step = 0
     for i in range(0,len(data),batch_size):
         indexes = data_index[i:i+batch_size]
         data_batch,label_batch = bert_utils.get_minibatch(data,label,indexes,train_type)
@@ -145,12 +146,12 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         pred = np.argmax(scores,axis=1)  #[np.argmax(s) for s in scores]
         preds.extend(pred)
         Y.extend(label_batch) #valid 是label test是ids
-        
+        step +=1
         if train_type=="train":
             loss = loss/args.N_batch_optimizer
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params,args.clip_grad)
-            if (i+1)%args.N_batch_optimizer == 0:
+            if step%args.N_batch_optimizer == 0:
                 optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad()
