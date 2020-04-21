@@ -42,6 +42,7 @@ parser.add_argument('--rnn_layers',type=int,default=1)
 parser.add_argument('--Train_valid',type=bool,default=False)
 parser.add_argument('--learning_rate',type=float,default=2e-5)
 parser.add_argument('--N_batch_optimizer',type = int,default=1)
+parser.add_argument('--Train_test',type=bool,default=False)
 args = parser.parse_args()
 
 
@@ -78,6 +79,7 @@ tokenizer =BertTokenizer.from_pretrained(tokenizer_path)
 
 max_len = args.maxlen
 xtrain,xvalid,ytrain,yvalid,test_data,ids = bert_utils.get_split_data(random_seed)
+test_y = bert_utils.get_best_test_label()
 #train_data,label,test_data,ids = bert_utils.get_Bert_whole_data()
 Valid_F1 = 0
 
@@ -193,6 +195,10 @@ if args.Train_valid:
     xtrain = np.concatenate((xtrain,xvalid))
     ytrain = np.concatenate((ytrain,yvalid))
     print("Train all data,len=%d"%(len(xtrain)))
+if args.Train_test:
+    xtrain = np.concatenate((xtrain,test_data))
+    ytrain = np.concatenate((ytrain,test_y))
+    print("Train test with best scores,len=%d"%(len(xtrain)))
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
