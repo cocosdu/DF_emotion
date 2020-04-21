@@ -41,6 +41,7 @@ parser.add_argument('--rnn_hidden_size',type=int,default=128)
 parser.add_argument('--rnn_layers',type=int,default=1)
 parser.add_argument('--Train_valid',type=bool,default=False)
 parser.add_argument('--learning_rate',type=float,default=2e-5)
+parser.add_argument('--N_batch_optimizer',type = int,default=1)
 args = parser.parse_args()
 
 
@@ -121,7 +122,7 @@ class BertEmotionClassifier(nn.Module):
         scores = F.log_softmax(linear_out,dim=1)
         return scores
 
-def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,epoch,lossF=nn.NLLLoss(reduction='sum')):#F.nll_loss
+def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,epoch,lossF=nn.NLLLoss()):#F.nll_loss
     start_time = time.time()
     if train_type=="train":
         np.random.shuffle(data_index)
@@ -146,12 +147,13 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         Y.extend(label_batch) #valid 是label test是ids
         
         if train_type=="train":
-            optimizer.zero_grad()
+            loss = loss/args.N_batch_optimizer
             loss.backward()
             torch.nn.utils.clip_grad_norm_(params,args.clip_grad)
-            optimizer.step()
-            scheduler.step()
-
+            if (i+1)%args.N_batch_optimizer == 0:
+                optimizer.step()
+                scheduler.step()
+                optimizer.zero_grad()
 
     if train_type=='valid':
         mean_loss = np.mean(losses)
@@ -163,7 +165,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_%s'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.RNN_type))
+        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_%s_acc_%d'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.RNN_type,args.N_batch_optimizer))
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
@@ -177,7 +179,7 @@ group_parameters =[{'params':[p for n,p in named_params if not any(nd in n for n
   {'params':[p for n,p in named_params if any(nd in n for nd in no_decay)],'weight_decay':0.0}]
 #optimizer = optim.Adam(params, lr=learning_rate)
 optimizer = AdamW(group_parameters,lr=learning_rate)
-num_steps =len(xtrain)//batch_size*epoches
+num_steps =len(xtrain)//batch_size*1
 scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 if args.test_function:
