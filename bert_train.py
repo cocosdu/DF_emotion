@@ -155,7 +155,7 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
             torch.nn.utils.clip_grad_norm_(params,args.clip_grad)
             if step%args.N_batch_optimizer == 0:
                 optimizer.step()
-                scheduler.step()
+                #scheduler.step()
                 optimizer.zero_grad()
 
     if train_type=='valid':
@@ -168,7 +168,18 @@ def train_or_test(model,data,label,data_index,batch_size,train_type,optimizer,ep
         P,F1 = bert_utils.getF1(preds,Y)
         print("--Train epoch:%d time:%.4f loss:%.4f  F1:%.4f P:%.4f"%(epoch,time.time()-start_time,mean_loss,F1,P))
     else:
-        bert_utils.saveResult(Y,preds,'%s_rs%d_ep%d_bc%d_%.4f_acc%d'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.N_batch_optimizer))
+        file_path = '%s_rs%d_ep%d_bc%d_%.4f_dr%.2f'%(args.bert_model,random_seed,epoch,batch_size,Valid_F1,args.dropout)
+        if args.N_batch_optimizer!=1:
+            file_path +='_acc%d'%(args.N_batch_optimizer)
+        if args.RNN_type !=None:
+            file_path +='_%s'%(args.RNN_type)
+        if args.Train_valid:
+            file_path += '_valid'
+        if args.Train_test:
+            file_path +='_test'
+        lr = learning_rate/1e-5
+        file_path += '_lr%.1f'%(lr)
+        bert_utils.saveResult(Y,preds,file_path)
 
 model = BertEmotionClassifier(pretrained_model,3)
 if torch.cuda.is_available():
@@ -188,7 +199,7 @@ if args.test_function:
     xtrain =xtrain[:temp]
     xvalid =xvalid[:temp]
     test_data =test_data[:temp]
-
+'''
 if args.Train_valid:
     xtrain = np.concatenate((xtrain,xvalid))
     ytrain = np.concatenate((ytrain,yvalid))
@@ -197,9 +208,9 @@ if args.Train_test:
     xtrain = np.concatenate((xtrain,test_data))
     ytrain = np.concatenate((ytrain,test_y))
     print("Train test with best scores,len=%d"%(len(xtrain)))
-
-num_steps =len(xtrain)//batch_size//args.N_batch_optimizer *epoches
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
+'''
+#num_steps =len(xtrain)//batch_size//args.N_batch_optimizer *epoches
+#scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=int(0.1*num_steps), num_training_steps=num_steps)  # PyTorch scheduler
 
 train_data_index = np.arange(len(xtrain))
 valid_data_index = np.arange(len(xvalid))
@@ -207,6 +218,10 @@ test_data_index = np.arange(len(test_data))
 
 for epoch in range(1,epoches+1):
     train_or_test(model,xtrain,ytrain,train_data_index,batch_size,'train',optimizer,epoch)
+    if args.Train_valid:
+        train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'train',optimizer,epoch)
+    if args.Train_test:
+        train_or_test(model,test_data,test_y,test_data_index,batch_size,'train',optimizer,epoch)
     with torch.no_grad():
         Valid_F1 = train_or_test(model,xvalid,yvalid,valid_data_index,batch_size,'valid',optimizer,epoch)
         train_or_test(model,test_data,ids,test_data_index,batch_size,'test',None,epoch)
